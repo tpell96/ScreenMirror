@@ -1,0 +1,64 @@
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.env
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VSCode
+.vscode/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Environment files
+.env
+*.env.local
+.env.*.local
+
+# OS-generated files
+*.swp
+*.swo
+
+# Build / Output
+dist/
+build/
+out/
+
+# Coverage reports
+coverage/
+
+# Git
+.git/
+
+# IDEs
+.idea/
+*.iml
+*.sublime*
+
+# Compiled
+*.class
+*.o
+*.so
+*.dll
+*.exe
+
+# Misc
+*.bak
+*.tmp
+*.cache

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Screen Mirror - Control</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #333;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    
+    .container {
+      padding: 15px;
+    }
+    
+    .controls {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    button {
+      margin: 5px;
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    button.select-btn {
+      background-color: #2196F3;
+    }
+    
+    button.select-btn:hover {
+      background-color: #0b7dda;
+    }
+    
+    .status {
+      color: #4CAF50;
+      margin-left: 10px;
+      font-size: 14px;
+    }
+    
+    .control-buttons {
+      display: flex;
+      align-items: center;
+    }
+    
+    .controls-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+    }
+    
+    .resolution-select {
+      margin-left: 5px;
+      margin-right: 10px;
+      padding: 6px;
+      background-color: #444;
+      color: white;
+      border: 1px solid #666;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    .window-select {
+      min-width: 180px;
+      padding: 6px;
+      background-color: #444;
+      color: white;
+      border: 1px solid #666;
+      border-radius: 4px;
+      margin-right: 10px;
+      font-size: 14px;
+    }
+    
+    .aspect-toggle {
+      margin-left: 10px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .aspect-toggle label {
+      margin-right: 8px;
+      font-size: 14px;
+    }
+    
+    .selection-info {
+      display: flex;
+      align-items: center;
+      background-color: #222;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 5px;
+    }
+    
+    .selection-text {
+      flex: 1;
+      font-size: 14px;
+    }
+    
+    .selection-label {
+      font-weight: bold;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="controls">
+      <div class="control-buttons">
+        <button id="selectBtn" class="select-btn">Select Screen Area</button>
+        <button id="startBtn" disabled>Start Mirroring</button>
+        <button id="stopBtn" disabled>Stop Mirroring</button>
+        <span id="status" class="status">Select an area to mirror</span>
+      </div>
+      <div class="controls-right">
+        <label for="resolutionSelect">Output: </label>
+        <select id="resolutionSelect" class="resolution-select">
+          <option value="1080">1080p (1920×1080)</option>
+          <option value="1440">2K (2560×1440)</option>
+          <option value="2160">4K (3840×2160)</option>
+        </select>
+        <div class="aspect-toggle">
+          <label for="lockAspect">Lock 16:9 in selector:</label>
+          <input type="checkbox" id="lockAspect" checked>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="control-buttons">
+        <select id="windowSelect" class="window-select">
+          <option value="">Select a window to capture...</option>
+        </select>
+        <button id="detectWindowsBtn">Detect Windows</button>
+      </div>
+    </div>
+    <div class="selection-info">
+      <div class="selection-text">
+        <span class="selection-label">Current Selection:</span>
+        <span id="selectionCoords">None</span>
+      </div>
+    </div>
+  </div>
+  
+  <script src="renderer.js"></script>
+</body>
+</html> 

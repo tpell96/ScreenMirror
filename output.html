@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Screen Mirror - Output</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: black;
+    }
+    
+    #outputCanvas {
+      width: 100%;
+      height: 100vh;
+      object-fit: contain;
+      image-rendering: high-quality;
+      image-rendering: -webkit-optimize-contrast; /* For Safari/Chrome */
+    }
+  </style>
+</head>
+<body>
+  <canvas id="outputCanvas"></canvas>
+  
+  <script>
+    const { ipcRenderer } = require('electron');
+    const canvas = document.getElementById('outputCanvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    
+    // For better image quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Set canvas to full window size with high DPI support
+    function resizeCanvas() {
+      // Get device pixel ratio
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Get display size
+      const displayWidth = window.innerWidth;
+      const displayHeight = window.innerHeight;
+      
+      // Set canvas dimensions with high DPI support
+      canvas.width = displayWidth * dpr;
+      canvas.height = displayHeight * dpr;
+      
+      // Scale canvas CSS size
+      canvas.style.width = displayWidth + 'px';
+      canvas.style.height = displayHeight + 'px';
+      
+      // Scale the context
+      ctx.scale(dpr, dpr);
+      
+      // Reset smoothing after resize
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+    }
+    
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    // Receive video frames from main process
+    ipcRenderer.on('video-frame', (event, frameData) => {
+      const img = new Image();
+      
+      img.onload = () => {
+        // Get display dimensions (CSS pixels)
+        const displayWidth = window.innerWidth;
+        const displayHeight = window.innerHeight;
+        
+        // Clear with black background
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, displayWidth, displayHeight);
+        
+        // Calculate aspect ratio preserving scaling
+        const widthRatio = displayWidth / img.width;
+        const heightRatio = displayHeight / img.height;
+        const ratio = Math.min(widthRatio, heightRatio);
+        
+        const scaledWidth = img.width * ratio;
+        const scaledHeight = img.height * ratio;
+        const centerX = (displayWidth - scaledWidth) / 2;
+        const centerY = (displayHeight - scaledHeight) / 2;
+        
+        // Draw the image at the calculated position and size
+        ctx.drawImage(img, 0, 0, img.width, img.height, 
+                     centerX, centerY, scaledWidth, scaledHeight);
+      };
+      
+      // Set image source to the frame data
+      img.src = frameData;
+    });
+  </script>
+</body>
+</html> 
