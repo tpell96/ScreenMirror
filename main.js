@@ -2,8 +2,12 @@ const { app, BrowserWindow, ipcMain, screen, desktopCapturer } = require('electr
 const path = require('path');
 
 let mainWindow;
-let outputWindow;
+let outputWindow = null;
 let selectionWindow;
+
+// Add command line arguments support for screen selection
+const sourceScreenId = app.commandLine.getSwitchValue('source-screen');
+const destScreenId = app.commandLine.getSwitchValue('dest-screen');
 
 function createWindows() {
   const displays = screen.getAllDisplays();
@@ -24,16 +28,52 @@ function createWindows() {
 
   mainWindow.loadFile('index.html');
   
-  // Find secondary display (16:9 TV)
-  const secondaryDisplay = displays.find(d => !d.isPrimary);
+  // Send initial configuration to renderer if screen IDs were provided
+  if (sourceScreenId || destScreenId) {
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.send('initial-screen-config', {
+        sourceScreenId,
+        destScreenId
+      });
+    });
+  }
   
-  // If there's a secondary display, create output window on it
-  if (secondaryDisplay) {
+  mainWindow.on('closed', () => {
+    app.quit();
+  });
+}
+
+// Create output window on the selected display
+function createOutputWindow(screenId = null) {
+  // Close existing output window if it exists
+  if (outputWindow && !outputWindow.isDestroyed()) {
+    outputWindow.close();
+    outputWindow = null;
+  }
+  
+  const displays = screen.getAllDisplays();
+  
+  // Determine which display to use for output
+  let outputDisplay = null;
+  
+  if (screenId) {
+    // If screen ID was specified, use that screen
+    outputDisplay = displays.find(d => d.id.toString() === screenId.toString());
+  } else if (destScreenId) {
+    // If destination screen ID was specified via command line, use that screen
+    outputDisplay = displays.find(d => d.id.toString() === destScreenId);
+  } else {
+    // Default behavior: use first non-primary display
+    outputDisplay = displays.find(d => !d.isPrimary);
+  }
+  
+  // If a display was found, create output window
+  if (outputDisplay) {
     outputWindow = new BrowserWindow({
-      x: secondaryDisplay.bounds.x,
-      y: secondaryDisplay.bounds.y,
-      width: secondaryDisplay.bounds.width,
-      height: secondaryDisplay.bounds.height,
+      x: outputDisplay.bounds.x,
+      y: outputDisplay.bounds.y,
+      width: outputDisplay.bounds.width,
+      height: outputDisplay.bounds.height,
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
@@ -43,6 +83,10 @@ function createWindows() {
     });
     
     outputWindow.loadFile('output.html');
+    console.log(`Created output window on screen ${outputDisplay.id} (${outputDisplay.bounds.width}x${outputDisplay.bounds.height})`);
+    
+    // Return the display info
+    return outputDisplay;
   } else {
     // For testing: If no secondary display, create a simulated one
     outputWindow = new BrowserWindow({
@@ -56,26 +100,37 @@ function createWindows() {
     });
     
     outputWindow.loadFile('output.html');
+    console.log('Created test output window (no secondary display found)');
+    
+    // Return null for test window
+    return null;
   }
-  
-  mainWindow.on('closed', () => {
-    app.quit();
-  });
 }
 
 // Create transparent selection window for snipping tool-like functionality
-function createSelectionWindow() {
-  const primaryDisplay = screen.getPrimaryDisplay();
+function createSelectionWindow(screenId = null) {
+  // Determine which display to use for selection
+  let selectionDisplay = screen.getPrimaryDisplay();
   
-  // Create a transparent, frameless window covering the entire primary display
+  // If a specific screen ID was provided, use that instead
+  if (screenId) {
+    const displays = screen.getAllDisplays();
+    const targetDisplay = displays.find(d => d.id.toString() === screenId.toString());
+    if (targetDisplay) {
+      selectionDisplay = targetDisplay;
+      console.log(`Creating selection window on screen ${screenId} at ${targetDisplay.bounds.x},${targetDisplay.bounds.y} (${targetDisplay.bounds.width}×${targetDisplay.bounds.height})`);
+    }
+  }
+  
+  // Create a transparent, frameless window covering the selected display
   selectionWindow = new BrowserWindow({
-    x: primaryDisplay.bounds.x,
-    y: primaryDisplay.bounds.y,
-    width: primaryDisplay.bounds.width,
-    height: primaryDisplay.bounds.height,
+    x: selectionDisplay.bounds.x,
+    y: selectionDisplay.bounds.y,
+    width: selectionDisplay.bounds.width,
+    height: selectionDisplay.bounds.height,
     transparent: true,
     frame: false,
-    fullscreen: true,
+    fullscreen: false, // Use exact positioning instead of fullscreen
     alwaysOnTop: true,
     webPreferences: {
       nodeIntegration: true,
@@ -84,6 +139,17 @@ function createSelectionWindow() {
   });
   
   selectionWindow.loadFile('selection.html');
+  
+  // Pass the screen information to the selection window
+  selectionWindow.webContents.on('did-finish-load', () => {
+    selectionWindow.webContents.send('set-screen-bounds', {
+      x: selectionDisplay.bounds.x,
+      y: selectionDisplay.bounds.y,
+      width: selectionDisplay.bounds.width,
+      height: selectionDisplay.bounds.height,
+      scaleFactor: selectionDisplay.scaleFactor
+    });
+  });
   
   // Close the selection window when it loses focus (clicked outside)
   selectionWindow.on('blur', () => {
@@ -136,12 +202,71 @@ ipcMain.handle('get-aspect-lock-status', async () => {
   }
 });
 
+// Handle getting all screens
+ipcMain.handle('get-all-screens', () => {
+  const displays = screen.getAllDisplays();
+  return displays.map(display => {
+    // Get accurate screen information
+    // Some screens might report logical resolution (scaled) rather than physical resolution
+    const actualWidth = Math.round(display.bounds.width * display.scaleFactor);
+    const actualHeight = Math.round(display.bounds.height * display.scaleFactor);
+    
+    // Include both logical and physical resolutions
+    return {
+      id: display.id,
+      name: display.isPrimary ? 
+            `Primary Screen (${display.bounds.width}×${display.bounds.height})` : 
+            `Screen ${display.id.toString().slice(-4)} (${display.bounds.width}×${display.bounds.height})`,
+      isPrimary: display.isPrimary,
+      bounds: display.bounds,
+      workArea: display.workArea,
+      scaleFactor: display.scaleFactor,
+      actualWidth,
+      actualHeight,
+      colorDepth: display.colorDepth,
+      description: `${display.bounds.width}×${display.bounds.height} (scaled: ${actualWidth}×${actualHeight})`
+    };
+  });
+});
+
+// Handle creating output window when starting mirroring
+ipcMain.handle('create-output-window', (event, screenId) => {
+  const outputDisplay = createOutputWindow(screenId);
+  return outputDisplay ? {
+    id: outputDisplay.id,
+    bounds: outputDisplay.bounds
+  } : null;
+});
+
+// Handle setting destination screen
+ipcMain.on('set-destination-screen', (event, screenId) => {
+  // We'll no longer create the output window here, just store the ID
+  // The output window will be created when mirroring starts
+  console.log(`Destination screen set to: ${screenId} (window will be created when mirroring starts)`);
+});
+
+// Forward video frames from main window to output window
+ipcMain.on('video-frame', (event, frameData) => {
+  if (outputWindow && !outputWindow.isDestroyed()) {
+    outputWindow.webContents.send('video-frame', frameData);
+  }
+});
+
+// Handle closing the output window
+ipcMain.on('close-output-window', () => {
+  if (outputWindow && !outputWindow.isDestroyed()) {
+    outputWindow.close();
+    outputWindow = null;
+    console.log('Output window closed');
+  }
+});
+
 // Create selection window when requested by renderer
-ipcMain.on('start-selection', () => {
+ipcMain.on('start-selection', (event, sourceScreenId) => {
   if (selectionWindow) {
     selectionWindow.focus();
   } else {
-    createSelectionWindow();
+    createSelectionWindow(sourceScreenId);
   }
 });
 
@@ -269,13 +394,6 @@ function guessBoundsFromWindowId(id) {
     height: size.height
   };
 }
-
-// Forward video frames from main window to output window
-ipcMain.on('video-frame', (event, frameData) => {
-  if (outputWindow && !outputWindow.isDestroyed()) {
-    outputWindow.webContents.send('video-frame', frameData);
-  }
-});
 
 app.whenReady().then(createWindows);
 

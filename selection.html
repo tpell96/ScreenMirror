@@ -58,11 +58,27 @@
       font-family: Arial, sans-serif;
       z-index: 1001;
     }
+    
+    .screen-info {
+      position: fixed;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      z-index: 1001;
+    }
   </style>
 </head>
 <body>
   <div class="instructions">
     Click and drag to select the area you want to mirror. Press Esc to cancel.
+  </div>
+  <div class="screen-info" id="screen-info">
+    Screen Bounds: Unknown
   </div>
   <div class="aspect-ratio-indicator" id="aspect-ratio">
     Size: 0 x 0 | Aspect Ratio: 0:0
@@ -79,6 +95,7 @@
     const selectionArea = document.getElementById('selectionArea');
     const aspectRatioIndicator = document.getElementById('aspect-ratio');
     const aspectLockIndicator = document.getElementById('aspect-lock');
+    const screenInfoElement = document.getElementById('screen-info');
     
     // Selection variables
     let isSelecting = false;
@@ -86,15 +103,31 @@
     let currentX, currentY;
     let selectionData = {};
     
+    // Screen bounds information
+    let screenBounds = {
+      x: 0,
+      y: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scaleFactor: 1
+    };
+    
     // Check if 16:9 aspect ratio is locked
     let lockAspectRatio = true; // Default to true
     
-    // Request lock status from main window (when implemented)
+    // Request lock status from main window
     ipcRenderer.invoke('get-aspect-lock-status').then(locked => {
       lockAspectRatio = locked;
       aspectLockIndicator.textContent = `16:9 Aspect Ratio Lock: ${lockAspectRatio ? 'ON' : 'OFF'}`;
     }).catch(() => {
       console.log('Could not get aspect ratio lock status, using default');
+    });
+    
+    // Listen for screen bounds from main process
+    ipcRenderer.on('set-screen-bounds', (event, bounds) => {
+      screenBounds = bounds;
+      screenInfoElement.textContent = `Screen: ${bounds.width}×${bounds.height} (scale: ${bounds.scaleFactor}x)`;
+      console.log('Received screen bounds:', bounds);
     });
     
     // Handle selection process
@@ -166,11 +199,18 @@
       
       // Only send if it's a valid selection (not just a click)
       if (finalWidth > 10 && finalHeight > 10) {
+        // Create selection data including the screen offset
+        // This is important so the coordinates are relative to the entire desktop
         selectionData = {
           x: finalLeft,
           y: finalTop,
           width: finalWidth,
-          height: finalHeight
+          height: finalHeight,
+          screenX: screenBounds.x,
+          screenY: screenBounds.y,
+          screenWidth: screenBounds.width,
+          screenHeight: screenBounds.height,
+          scaleFactor: screenBounds.scaleFactor
         };
         
         // Send selection to main process

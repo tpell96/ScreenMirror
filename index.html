@@ -74,7 +74,7 @@
       font-size: 14px;
     }
     
-    .window-select {
+    .window-select, .screen-select {
       min-width: 180px;
       padding: 6px;
       background-color: #444;
@@ -114,16 +114,44 @@
       font-weight: bold;
       margin-right: 10px;
     }
+    
+    .screen-select-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      background-color: #222;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    
+    .screen-select-label {
+      min-width: 150px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
+    <div class="screen-select-container">
+      <span class="screen-select-label">Source Screen:</span>
+      <select id="sourceScreenSelect" class="screen-select">
+        <option value="">Select Source Screen...</option>
+      </select>
+    </div>
+    
+    <div class="screen-select-container">
+      <span class="screen-select-label">Destination Screen:</span>
+      <select id="destScreenSelect" class="screen-select">
+        <option value="">Select Destination Screen...</option>
+      </select>
+    </div>
+    
     <div class="controls">
       <div class="control-buttons">
         <button id="selectBtn" class="select-btn">Select Screen Area</button>
         <button id="startBtn" disabled>Start Mirroring</button>
         <button id="stopBtn" disabled>Stop Mirroring</button>
-        <span id="status" class="status">Select an area to mirror</span>
+        <span id="status" class="status">Select a screen to mirror</span>
       </div>
       <div class="controls-right">
         <label for="resolutionSelect">Output: </label>

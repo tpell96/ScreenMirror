@@ -1,61 +1,61 @@
 # Screen Mirror
 
-A specialized screen mirroring application designed for users with ultrawide monitors (like 32:9) who want to mirror content to a standard 16:9 display.
-
-## Purpose
-
-This application solves the aspect ratio problem when mirroring from an ultrawide monitor to a standard display by:
-
-1. Letting you select any region of your screen directly (like the Windows Snipping Tool)
-2. Mirroring only that selected region to your secondary display
+An Electron-based app that allows mirroring portions of your screen to another display, with flexible scaling and positioning options.
 
 ## Features
 
-- Snipping Tool-like interface to select any area on your screen
-- Optional 16:9 aspect ratio lock (toggle with 'A' key during selection)
-- Window detection to automatically select application windows
-- High-quality mirroring with output resolution options (1080p, 2K, 4K)
-- Simple control panel interface
-- Works with multiple monitor setups
+- Mirror your entire screen, a specific window, or a custom area to another display
+- Select source and destination screens
+- Scale output to 1080p, 1440p, or 4K resolution
+- Capture specific windows with auto-detection
+- Use area selection tool for custom regions
+- Command line options for automation
+
+## Usage
+
+### GUI Method
+
+1. Launch the app
+2. Select a source screen from the dropdown menu
+3. Select a destination screen where the mirrored content will be shown
+4. Click "Start Mirroring" to begin
+5. Use the "Select Screen Area" button to define a custom region to mirror
+6. Use "Detect Windows" to capture a specific window
+
+### Command Line Options
+
+You can specify source and destination screens when launching the app:
+```
+electron . --source-screen=<screen-id> --dest-screen=<screen-id>
+```
+
+For example:
+```
+electron . --source-screen=1234567890 --dest-screen=9876543210
+```
+
+To find your screen IDs, launch the app normally first and hover over the screen options in the dropdown menu.
+
+### Troubleshooting
+
+If a specific screen goes black during mirroring:
+- Try selecting a different output resolution
+- Make sure both screens are active in your system settings
+- Specify exact source and destination screens using the dropdown or command line options
 
 ## Installation
 
 1. Clone this repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Run the application:
-   ```
-   npm start
-   ```
+2. Install dependencies with `npm install`
+3. Run the app with `npm start`
 
-## Usage
+## Building
 
-1. Start the application. A small control panel will appear.
-2. Click "Select Screen Area" to open the screen selection tool.
-3. Click and drag to select the area you want to mirror.
-   - Press 'A' to toggle 16:9 aspect ratio lock while selecting
-   - Press 'Esc' to cancel selection
-4. After selecting an area, click "Start Mirroring" to begin mirroring to your secondary display.
-5. Alternatively, click "Detect Windows" and select a window from the dropdown to automatically set the capture area.
-6. Select your desired output resolution from the dropdown (1080p, 2K, or 4K).
-7. Click "Stop Mirroring" when finished.
-
-## Building for Distribution
-
-To create an executable:
-
+To create a distributable package:
 ```
-npm run build
+npm run make
 ```
-
-## Requirements
-
-- Windows, macOS, or Linux
-- A multi-monitor setup (ideally a 32:9 primary and 16:9 secondary)
-- Node.js and npm
 
 ## License
 
-ISC 
+MIT 

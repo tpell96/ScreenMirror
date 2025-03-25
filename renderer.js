@@ -10,6 +10,8 @@ const windowSelect = document.getElementById('windowSelect');
 const detectWindowsBtn = document.getElementById('detectWindowsBtn');
 const lockAspect = document.getElementById('lockAspect');
 const selectionCoords = document.getElementById('selectionCoords');
+const sourceScreenSelect = document.getElementById('sourceScreenSelect');
+const destScreenSelect = document.getElementById('destScreenSelect');
 
 // State variables
 let isCapturing = false;
@@ -18,6 +20,7 @@ let captureInterval = null;
 let captureCanvas, captureCtx, video;
 let windowList = [];
 let screenInfo = null;
+let screenList = [];
 let currentSelection = null;
 
 // Resolution presets (width for 16:9 aspect ratio)
@@ -58,8 +61,16 @@ async function getScreenInfo() {
 
 // Start selection process
 function startSelection() {
-  // Send message to main process to create selection window
-  ipcRenderer.send('start-selection');
+  // Check if we have a source screen selected
+  const sourceScreenId = sourceScreenSelect.value;
+  if (!sourceScreenId) {
+    status.textContent = 'Please select a source screen first';
+    status.style.color = 'red';
+    return;
+  }
+  
+  // Send message to main process to create selection window on the source screen
+  ipcRenderer.send('start-selection', sourceScreenId);
   status.textContent = 'Selecting area...';
 }
 
@@ -175,7 +186,121 @@ async function startCaptureWindow(windowId) {
   }
 }
 
-// Start screen capture and mirroring
+// Get all available screens
+async function getAllScreens() {
+  try {
+    screenList = await ipcRenderer.invoke('get-all-screens');
+    
+    // Populate source screen dropdown
+    sourceScreenSelect.innerHTML = '<option value="">Select Source Screen...</option>';
+    screenList.forEach((screen, index) => {
+      const option = document.createElement('option');
+      option.value = screen.id;
+      option.textContent = `${screen.isPrimary ? 'Primary: ' : ''}${screen.description}`;
+      option.title = `Screen ID: ${screen.id}, Scale: ${screen.scaleFactor}x`;
+      sourceScreenSelect.appendChild(option);
+    });
+    
+    // Populate destination screen dropdown
+    destScreenSelect.innerHTML = '<option value="">Select Destination Screen...</option>';
+    screenList.forEach((screen, index) => {
+      const option = document.createElement('option');
+      option.value = screen.id;
+      option.textContent = `${screen.isPrimary ? 'Primary: ' : ''}${screen.description}`;
+      option.title = `Screen ID: ${screen.id}, Scale: ${screen.scaleFactor}x`;
+      destScreenSelect.appendChild(option);
+    });
+    
+    console.log('Available screens:', screenList);
+  } catch (error) {
+    console.error('Error getting screens:', error);
+  }
+}
+
+// Handle selection of source screen
+function handleSourceScreenSelection() {
+  const screenId = sourceScreenSelect.value;
+  if (!screenId) return;
+  
+  const selectedScreen = screenList.find(s => s.id.toString() === screenId);
+  if (!selectedScreen) return;
+  
+  // Store current selection based on the entire screen
+  currentSelection = {
+    x: 0,
+    y: 0,
+    width: selectedScreen.bounds.width,
+    height: selectedScreen.bounds.height,
+    screenId: selectedScreen.id
+  };
+  
+  // Update UI with selection info
+  updateSelectionDisplay();
+  
+  // Enable start button
+  startBtn.disabled = false;
+  status.textContent = `Ready to Mirror: ${selectedScreen.name}`;
+}
+
+// Handle screen selection change
+sourceScreenSelect.addEventListener('change', handleSourceScreenSelection);
+
+// Start screen capture for a specific screen
+async function startCaptureScreen(screenId) {
+  try {
+    // Initialize capture elements with selected resolution
+    initCaptureElements();
+    
+    // Get available screen sources
+    const sources = await ipcRenderer.invoke('get-sources');
+    
+    // Find the source for the selected screen
+    // Note: screen IDs from Electron don't directly match desktopCapturer IDs,
+    // so we need to match by screen number or name
+    const screenNumber = screenList.findIndex(s => s.id.toString() === screenId) + 1;
+    const screenSource = sources.find(source => 
+      source.name === `Screen ${screenNumber}` || 
+      source.name === 'Entire Screen' ||
+      source.name.includes(`Screen ${screenNumber}`)
+    );
+    
+    if (!screenSource) {
+      console.error(`Could not find screen source for screen ID: ${screenId}`);
+      return false;
+    }
+    
+    // Prompt user for screen sharing permission
+    const constraints = {
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: screenSource.id,
+        }
+      }
+    };
+    
+    // Get the stream
+    captureStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    // Set up video element
+    video.srcObject = captureStream;
+    video.onloadedmetadata = () => {
+      video.play();
+      
+      // Start capture loop
+      isCapturing = true;
+      captureInterval = setInterval(captureAndSendFrame, 1000 / 30); // 30 FPS
+    };
+    
+    return true;
+  } catch (error) {
+    console.error('Error capturing screen:', error);
+    return false;
+  }
+}
+
+// Modify startCapture to create the output window first
 async function startCapture() {
   if (!currentSelection) {
     status.textContent = 'Please select an area first';
@@ -188,73 +313,105 @@ async function startCapture() {
   status.textContent = 'Starting capture...';
   status.style.color = '#FFA500'; // Orange - processing
   
-  let success = false;
-  
-  // If we have a window ID, try to capture that specific window first
-  if (currentSelection.windowId) {
-    console.log(`Attempting to capture window: ${currentSelection.windowName}`);
-    success = await startCaptureWindow(currentSelection.windowId);
+  // First create the output window on the destination screen
+  const destScreen = destScreenSelect.value;
+  if (!destScreen) {
+    status.textContent = 'Please select a destination screen first';
+    status.style.color = 'red';
+    selectBtn.disabled = false;
+    startBtn.disabled = false;
+    return;
   }
   
-  // If window capture failed or we don't have a window ID, fall back to screen capture
-  if (!success) {
-    try {
-      // Initialize capture elements with selected resolution
-      initCaptureElements();
-      
-      // Get available screen sources
-      const sources = await ipcRenderer.invoke('get-sources');
-      const mainSource = sources.find(source => source.name === 'Entire Screen' || source.name.includes('Screen 1'));
-      
-      if (!mainSource) {
-        status.textContent = 'Error: Cannot find main display';
+  try {
+    // Create the output window on the selected destination screen
+    await ipcRenderer.invoke('create-output-window', destScreen);
+    
+    // Small delay to let the output window initialize
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Now proceed with capture
+    let success = false;
+    
+    // If we have a screenId, try to capture that specific screen
+    if (currentSelection.screenId) {
+      console.log(`Attempting to capture screen: ${currentSelection.screenId}`);
+      success = await startCaptureScreen(currentSelection.screenId);
+    }
+    // If we have a window ID, try to capture that specific window
+    else if (currentSelection.windowId) {
+      console.log(`Attempting to capture window: ${currentSelection.windowName}`);
+      success = await startCaptureWindow(currentSelection.windowId);
+    }
+    
+    // If specific capture failed or we don't have a specific target, fall back to screen capture
+    if (!success) {
+      // Existing fallback code
+      try {
+        // Initialize capture elements with selected resolution
+        initCaptureElements();
+        
+        // Get available screen sources
+        const sources = await ipcRenderer.invoke('get-sources');
+        const mainSource = sources.find(source => source.name === 'Entire Screen' || source.name.includes('Screen 1'));
+        
+        if (!mainSource) {
+          status.textContent = 'Error: Cannot find main display';
+          status.style.color = 'red';
+          selectBtn.disabled = false;
+          return;
+        }
+        
+        // Prompt user for screen sharing permission
+        const constraints = {
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: mainSource.id,
+            }
+          }
+        };
+        
+        // Get the stream
+        captureStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Set up video element
+        video.srcObject = captureStream;
+        video.onloadedmetadata = () => {
+          video.play();
+          
+          // Start capture loop
+          isCapturing = true;
+          captureInterval = setInterval(captureAndSendFrame, 1000 / 30); // 30 FPS
+        };
+      } catch (error) {
+        status.textContent = `Error: ${error.message}`;
         status.style.color = 'red';
+        console.error('Error starting capture:', error);
         selectBtn.disabled = false;
         return;
       }
-      
-      // Prompt user for screen sharing permission
-      const constraints = {
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: mainSource.id,
-          }
-        }
-      };
-      
-      // Get the stream
-      captureStream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // Set up video element
-      video.srcObject = captureStream;
-      video.onloadedmetadata = () => {
-        video.play();
-        
-        // Start capture loop
-        isCapturing = true;
-        captureInterval = setInterval(captureAndSendFrame, 1000 / 30); // 30 FPS
-      };
-    } catch (error) {
-      status.textContent = `Error: ${error.message}`;
-      status.style.color = 'red';
-      console.error('Error starting capture:', error);
-      selectBtn.disabled = false;
-      return;
     }
+    
+    // Update UI
+    stopBtn.disabled = false;
+    resolutionSelect.disabled = true;
+    windowSelect.disabled = true;
+    detectWindowsBtn.disabled = true;
+    status.textContent = 'Mirroring Active';
+    status.style.color = '#4CAF50';
+    
+  } catch (error) {
+    status.textContent = `Error creating output window: ${error.message}`;
+    status.style.color = 'red';
+    console.error('Error creating output window:', error);
+    selectBtn.disabled = false;
+    startBtn.disabled = false;
   }
-  
-  // Update UI
-  stopBtn.disabled = false;
-  resolutionSelect.disabled = true;
-  windowSelect.disabled = true;
-  detectWindowsBtn.disabled = true;
-  status.textContent = 'Mirroring Active';
-  status.style.color = '#4CAF50';
 }
 
-// Stop screen capture
+// Update stopCapture to handle closing the output window
 function stopCapture() {
   isCapturing = false;
   
@@ -267,6 +424,9 @@ function stopCapture() {
     captureStream.getTracks().forEach(track => track.stop());
     captureStream = null;
   }
+  
+  // Signal main process to close the output window
+  ipcRenderer.send('close-output-window');
   
   // Update UI
   selectBtn.disabled = false;
@@ -306,24 +466,49 @@ async function detectWindows() {
   }
 }
 
-// Update the selection display
+// Update UI to display current selection
 function updateSelectionDisplay() {
-  if (currentSelection) {
-    const { x, y, width, height, windowName } = currentSelection;
-    let displayText = `X: ${x}, Y: ${y}, Width: ${width}, Height: ${height} (${(width / height).toFixed(2)}:1)`;
-    
-    if (windowName) {
-      displayText = `Window: "${windowName}" - ${displayText}`;
-    }
-    
-    selectionCoords.textContent = displayText;
-  } else {
+  if (!currentSelection) {
     selectionCoords.textContent = 'None';
+    return;
   }
+  
+  // If we have a selected screen
+  if (currentSelection.screenId) {
+    const selectedScreen = screenList.find(s => s.id.toString() === currentSelection.screenId.toString());
+    if (selectedScreen) {
+      const { bounds, actualWidth, actualHeight, scaleFactor } = selectedScreen;
+      selectionCoords.textContent = `Screen: ${selectedScreen.isPrimary ? 'Primary' : 'Secondary'} - ` +
+        `${bounds.width}×${bounds.height} (${actualWidth}×${actualHeight} @ ${scaleFactor}x scale)`;
+    } else {
+      selectionCoords.textContent = `Screen ID ${currentSelection.screenId} - Full Screen`;
+    }
+    return;
+  }
+  
+  // If we have a selected window
+  if (currentSelection.windowId) {
+    selectionCoords.textContent = `Window: ${currentSelection.windowName} - ${currentSelection.width}×${currentSelection.height}`;
+    return;
+  }
+  
+  // Otherwise, display area coordinates
+  selectionCoords.textContent = `Area: ${currentSelection.x},${currentSelection.y} (${currentSelection.width}×${currentSelection.height})`;
 }
 
 // Handle selection result
 function handleSelectionResult(selectionData) {
+  // If the selection includes screen coordinates, use them to calculate the absolute position
+  // This makes the selection coordinates correct regardless of which screen it was made on
+  if (selectionData.screenX !== undefined && selectionData.screenY !== undefined) {
+    // Adjust coordinates to be relative to the entire desktop
+    selectionData.x += selectionData.screenX;
+    selectionData.y += selectionData.screenY;
+  }
+  
+  console.log('Selection data:', selectionData);
+  
+  // Store the selection
   currentSelection = selectionData;
   updateSelectionDisplay();
   startBtn.disabled = false;
@@ -353,8 +538,41 @@ ipcRenderer.on('selection-canceled', () => {
   status.textContent = 'Selection canceled';
 });
 
-// Initialize the application
-window.addEventListener('load', async () => {
+// Handle destination screen selection
+destScreenSelect.addEventListener('change', () => {
+  const screenId = destScreenSelect.value;
+  if (!screenId) return;
+  
+  const selectedScreen = screenList.find(s => s.id.toString() === screenId);
+  if (!selectedScreen) return;
+  
+  // Only update the status - don't create output window yet
+  status.textContent = `Destination set to: ${selectedScreen.name}`;
+});
+
+// Add to setup event listeners
+document.addEventListener('DOMContentLoaded', async () => {
+  // Initialize
   await getScreenInfo();
-  initCaptureElements();
+  await getAllScreens();
+  
+  // Check for initial configuration from main process
+  ipcRenderer.on('initial-screen-config', (event, config) => {
+    if (config.sourceScreenId) {
+      sourceScreenSelect.value = config.sourceScreenId;
+      handleSourceScreenSelection();
+    }
+    
+    if (config.destScreenId) {
+      destScreenSelect.value = config.destScreenId;
+      // Trigger destination screen selection event but don't create output window yet
+      const changeEvent = new Event('change');
+      destScreenSelect.dispatchEvent(changeEvent);
+    }
+    
+    // Don't auto-start capture - let user explicitly start it
+    status.textContent = 'Ready to start mirroring';
+  });
+  
+  // ... existing event listeners ...
 }); 
