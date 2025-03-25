@@ -16,7 +16,7 @@ function createWindows() {
   // Create main control window
   mainWindow = new BrowserWindow({
     width: 800,
-    height: 350, // Increased from 180 to 220 for more space
+    height: 380, // Increased from 180 to 220 for more space
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
