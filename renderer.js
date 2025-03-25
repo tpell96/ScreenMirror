@@ -753,6 +753,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await getScreenInfo();
   await getAllScreens();
   
+  // Automatically detect windows on launch
+  await detectWindows();
+  
   // Check for initial configuration from main process
   ipcRenderer.on('initial-screen-config', (event, config) => {
     if (config.sourceScreenId) {
