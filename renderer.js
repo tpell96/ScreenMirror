@@ -40,6 +40,28 @@ const FRAME_INTERVAL = 1000 / MAX_FPS; // Time between frames in milliseconds
 // Add frame timing tracking
 let lastFrameTime = 0;
 
+// Add aspect ratio constants
+const TARGET_ASPECT_RATIO = 16 / 9;
+
+// Calculate optimal dimensions while maintaining aspect ratio
+function calculateOptimalDimensions(width, height) {
+  const currentAspectRatio = width / height;
+  
+  if (currentAspectRatio > TARGET_ASPECT_RATIO) {
+    // Window is wider than 16:9
+    return {
+      width: width,
+      height: Math.round(width / TARGET_ASPECT_RATIO)
+    };
+  } else {
+    // Window is taller than 16:9
+    return {
+      width: Math.round(height * TARGET_ASPECT_RATIO),
+      height: height
+    };
+  }
+}
+
 // Save preferences
 function savePreferences() {
   const preferences = {
@@ -270,17 +292,22 @@ function setSelectionToWindow(windowIndex) {
   
   if (!screenInfo) return;
   
-  // For a window selection, we'll use bounds from the window list
-  // but for actual capturing, we need to ensure we capture the actual window content
+  // Calculate optimal dimensions for the window
+  const optimalDims = calculateOptimalDimensions(
+    selectedWindow.bounds.width,
+    selectedWindow.bounds.height
+  );
   
-  // Store the window ID along with its bounds so we can use it during capture
+  // Store the window ID along with its bounds and optimal dimensions
   currentSelection = {
     x: selectedWindow.bounds.x,
     y: selectedWindow.bounds.y,
     width: selectedWindow.bounds.width,
     height: selectedWindow.bounds.height,
     windowId: selectedWindow.id,
-    windowName: selectedWindow.name
+    windowName: selectedWindow.title,
+    optimalWidth: optimalDims.width,
+    optimalHeight: optimalDims.height
   };
   
   // Update the UI to show details of the selected window
@@ -288,7 +315,7 @@ function setSelectionToWindow(windowIndex) {
   
   // Enable the start button
   startBtn.disabled = false;
-  status.textContent = `Ready to Mirror: ${selectedWindow.name}`;
+  status.textContent = `Ready to Mirror: ${selectedWindow.title}`;
 }
 
 // Start screen capture and mirroring specifically for a selected window
@@ -326,6 +353,9 @@ async function startCaptureWindow(windowId) {
         recoverFromFrameErrors();
       });
       
+      // Calculate optimal dimensions based on video dimensions
+      const optimalDims = calculateOptimalDimensions(video.videoWidth, video.videoHeight);
+      
       // Start capture loop for the window
       isCapturing = true;
       lastFrameTime = performance.now(); // Initialize frame timing
@@ -342,11 +372,27 @@ async function startCaptureWindow(windowId) {
           
           lastFrameTime = currentTime;
           
-          // For window capture, we want to capture the entire video feed
+          // Clear the canvas
+          captureCtx.fillStyle = '#000000';
+          captureCtx.fillRect(0, 0, captureCanvas.width, captureCanvas.height);
+          
+          // Calculate scaling and positioning to maintain aspect ratio
+          const scaleX = captureCanvas.width / optimalDims.width;
+          const scaleY = captureCanvas.height / optimalDims.height;
+          const scale = Math.min(scaleX, scaleY);
+          
+          const scaledWidth = optimalDims.width * scale;
+          const scaledHeight = optimalDims.height * scale;
+          
+          // Center the scaled content
+          const x = (captureCanvas.width - scaledWidth) / 2;
+          const y = (captureCanvas.height - scaledHeight) / 2;
+          
+          // Draw the window content scaled and centered
           captureCtx.drawImage(
             video,
             0, 0, video.videoWidth, video.videoHeight,
-            0, 0, captureCanvas.width, captureCanvas.height
+            x, y, scaledWidth, scaledHeight
           );
           
           // Send high-quality frame to main process
@@ -685,7 +731,9 @@ function updateSelectionDisplay() {
   
   // If we have a selected window
   if (currentSelection.windowId) {
-    selectionCoords.textContent = `Window: ${currentSelection.windowName} - ${currentSelection.width}×${currentSelection.height}`;
+    const aspectRatio = (currentSelection.width / currentSelection.height).toFixed(2);
+    selectionCoords.textContent = `Window: ${currentSelection.windowName} - ` +
+      `${currentSelection.width}×${currentSelection.height} (${aspectRatio}:1)`;
     return;
   }
   
