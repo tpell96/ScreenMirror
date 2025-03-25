@@ -28,6 +28,18 @@ let currentSelection = null;
 // Preferences storage key
 const PREFERENCES_KEY = 'screenMirrorPreferences';
 
+// Add frame error tracking
+let frameErrorCount = 0;
+const MAX_FRAME_ERRORS = 10;
+let lastSuccessfulFrame = null;
+
+// Add frame rate limiting constants
+const MAX_FPS = 60;
+const FRAME_INTERVAL = 1000 / MAX_FPS; // Time between frames in milliseconds
+
+// Add frame timing tracking
+let lastFrameTime = 0;
+
 // Save preferences
 function savePreferences() {
   const preferences = {
@@ -154,9 +166,19 @@ function startSelection() {
   status.textContent = 'Selecting area...';
 }
 
-// Process and send frame to output
+// Process and send frame to output with frame rate limiting
 function captureAndSendFrame() {
   if (!isCapturing || !video.readyState >= 2 || !currentSelection) return;
+  
+  // Frame rate limiting
+  const currentTime = performance.now();
+  const timeSinceLastFrame = currentTime - lastFrameTime;
+  
+  if (timeSinceLastFrame < FRAME_INTERVAL) {
+    return; // Skip frame if we're ahead of schedule
+  }
+  
+  lastFrameTime = currentTime;
   
   try {
     // Use the screen coordinates from the selection
@@ -183,8 +205,60 @@ function captureAndSendFrame() {
     // Send high-quality frame to main process
     const frameData = captureCanvas.toDataURL('image/jpeg', 0.92);
     ipcRenderer.send('video-frame', frameData);
+    
+    // Reset error count on successful frame
+    frameErrorCount = 0;
+    lastSuccessfulFrame = frameData;
+    
   } catch (error) {
     console.error('Error capturing frame:', error);
+    frameErrorCount++;
+    
+    // If we have a last successful frame, use it as fallback
+    if (lastSuccessfulFrame) {
+      ipcRenderer.send('video-frame', lastSuccessfulFrame);
+    }
+    
+    // If we've had too many errors, try to recover
+    if (frameErrorCount >= MAX_FRAME_ERRORS) {
+      console.log('Too many frame errors, attempting recovery...');
+      recoverFromFrameErrors();
+    }
+  }
+}
+
+// Add recovery function
+async function recoverFromFrameErrors() {
+  try {
+    // Stop current capture
+    if (captureStream) {
+      captureStream.getTracks().forEach(track => track.stop());
+      captureStream = null;
+    }
+    
+    // Clear interval
+    if (captureInterval) {
+      clearInterval(captureInterval);
+      captureInterval = null;
+    }
+    
+    // Small delay to let system stabilize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Restart capture
+    if (currentSelection.windowId) {
+      await startCaptureWindow(currentSelection.windowId);
+    } else if (currentSelection.screenId) {
+      await startCaptureScreen(currentSelection.screenId);
+    }
+    
+    // Reset error count
+    frameErrorCount = 0;
+    
+  } catch (error) {
+    console.error('Failed to recover from frame errors:', error);
+    status.textContent = 'Error: Failed to recover from frame errors';
+    status.style.color = 'red';
   }
 }
 
@@ -239,24 +313,65 @@ async function startCaptureWindow(windowId) {
     
     // Set up video element
     video.srcObject = captureStream;
+    
+    // Add error handling for video element
+    video.onerror = (error) => {
+      console.error('Video element error:', error);
+      recoverFromFrameErrors();
+    };
+    
     video.onloadedmetadata = () => {
-      video.play();
+      video.play().catch(error => {
+        console.error('Error playing video:', error);
+        recoverFromFrameErrors();
+      });
       
       // Start capture loop for the window
       isCapturing = true;
+      lastFrameTime = performance.now(); // Initialize frame timing
+      
       captureInterval = setInterval(() => {
-        // For window capture, we want to capture the entire video feed
-        // since we're directly capturing the window
-        captureCtx.drawImage(
-          video,
-          0, 0, video.videoWidth, video.videoHeight,
-          0, 0, captureCanvas.width, captureCanvas.height
-        );
-        
-        // Send high-quality frame to main process
-        const frameData = captureCanvas.toDataURL('image/jpeg', 0.92);
-        ipcRenderer.send('video-frame', frameData);
-      }, 1000 / 30); // 30 FPS
+        try {
+          // Frame rate limiting
+          const currentTime = performance.now();
+          const timeSinceLastFrame = currentTime - lastFrameTime;
+          
+          if (timeSinceLastFrame < FRAME_INTERVAL) {
+            return; // Skip frame if we're ahead of schedule
+          }
+          
+          lastFrameTime = currentTime;
+          
+          // For window capture, we want to capture the entire video feed
+          captureCtx.drawImage(
+            video,
+            0, 0, video.videoWidth, video.videoHeight,
+            0, 0, captureCanvas.width, captureCanvas.height
+          );
+          
+          // Send high-quality frame to main process
+          const frameData = captureCanvas.toDataURL('image/jpeg', 0.92);
+          ipcRenderer.send('video-frame', frameData);
+          
+          // Reset error count on successful frame
+          frameErrorCount = 0;
+          lastSuccessfulFrame = frameData;
+          
+        } catch (error) {
+          console.error('Error in window capture loop:', error);
+          frameErrorCount++;
+          
+          // Use last successful frame as fallback
+          if (lastSuccessfulFrame) {
+            ipcRenderer.send('video-frame', lastSuccessfulFrame);
+          }
+          
+          // Attempt recovery if too many errors
+          if (frameErrorCount >= MAX_FRAME_ERRORS) {
+            recoverFromFrameErrors();
+          }
+        }
+      }, FRAME_INTERVAL); // Use frame rate limited interval
     };
     
     return true;
@@ -338,8 +453,6 @@ async function startCaptureScreen(screenId) {
     const sources = await ipcRenderer.invoke('get-sources');
     
     // Find the source for the selected screen
-    // Note: screen IDs from Electron don't directly match desktopCapturer IDs,
-    // so we need to match by screen number or name
     const screenNumber = screenList.findIndex(s => s.id.toString() === screenId) + 1;
     const screenSource = sources.find(source => 
       source.name === `Screen ${screenNumber}` || 
@@ -371,9 +484,10 @@ async function startCaptureScreen(screenId) {
     video.onloadedmetadata = () => {
       video.play();
       
-      // Start capture loop
+      // Start capture loop with frame rate limiting
       isCapturing = true;
-      captureInterval = setInterval(captureAndSendFrame, 1000 / 30); // 30 FPS
+      lastFrameTime = performance.now(); // Initialize frame timing
+      captureInterval = setInterval(captureAndSendFrame, FRAME_INTERVAL);
     };
     
     return true;
