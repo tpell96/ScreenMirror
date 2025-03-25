@@ -14,24 +14,76 @@
     }
     
     .container {
-      padding: 15px;
+      padding: 12px;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    
+    .screen-selectors {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      background-color: #222;
+      padding: 10px;
+      border-radius: 4px;
+      flex-wrap: wrap;
+    }
+    
+    .screen-select-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      min-width: 300px; /* Ensure minimum width for readability */
+    }
+    
+    .screen-select-label {
+      min-width: 120px;
+      font-size: 13px;
+      color: #ccc;
+      white-space: nowrap;
+    }
+    
+    .screen-select {
+      flex: 1;
+      padding: 6px;
+      background-color: #444;
+      color: white;
+      border: 1px solid #666;
+      border-radius: 4px;
+      font-size: 13px;
+      min-width: 0; /* Prevents select from overflowing */
     }
     
     .controls {
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
+      background-color: #222;
+      padding: 10px;
+      border-radius: 4px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .control-buttons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
     
     button {
-      margin: 5px;
-      padding: 8px 16px;
+      padding: 6px 12px;
       background-color: #4CAF50;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
+      transition: background-color 0.2s;
+      white-space: nowrap;
     }
     
     button:hover {
@@ -46,104 +98,114 @@
       background-color: #0b7dda;
     }
     
-    .status {
-      color: #4CAF50;
-      margin-left: 10px;
-      font-size: 14px;
+    button:disabled {
+      background-color: #666;
+      cursor: not-allowed;
     }
     
-    .control-buttons {
-      display: flex;
-      align-items: center;
+    .status {
+      color: #4CAF50;
+      font-size: 13px;
+      white-space: nowrap;
     }
     
     .controls-right {
-      margin-left: auto;
       display: flex;
       align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .resolution-select, .window-select {
+      padding: 6px;
+      background-color: #444;
+      color: white;
+      border: 1px solid #666;
+      border-radius: 4px;
+      font-size: 13px;
+      min-width: 0; /* Prevents select from overflowing */
+    }
+    
+    .window-select {
+      min-width: 180px;
+      max-width: 200px;
     }
     
     .resolution-select {
-      margin-left: 5px;
-      margin-right: 10px;
-      padding: 6px;
-      background-color: #444;
-      color: white;
-      border: 1px solid #666;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-    
-    .window-select, .screen-select {
-      min-width: 180px;
-      padding: 6px;
-      background-color: #444;
-      color: white;
-      border: 1px solid #666;
-      border-radius: 4px;
-      margin-right: 10px;
-      font-size: 14px;
+      min-width: 140px;
     }
     
     .aspect-toggle {
-      margin-left: 10px;
       display: flex;
       align-items: center;
+      gap: 6px;
+      white-space: nowrap;
     }
     
     .aspect-toggle label {
-      margin-right: 8px;
-      font-size: 14px;
+      font-size: 13px;
+      color: #ccc;
     }
     
     .selection-info {
-      display: flex;
-      align-items: center;
       background-color: #222;
-      padding: 10px;
+      padding: 8px 10px;
       border-radius: 4px;
-      margin-top: 5px;
+      margin-top: 12px;
     }
     
     .selection-text {
-      flex: 1;
-      font-size: 14px;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .selection-label {
       font-weight: bold;
-      margin-right: 10px;
+      color: #ccc;
+      margin-right: 8px;
     }
     
-    .screen-select-container {
+    .preferences-buttons {
       display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-      background-color: #222;
-      padding: 10px;
-      border-radius: 4px;
+      gap: 8px;
+      margin-left: auto;
+      align-self: flex-end;
     }
     
-    .screen-select-label {
-      min-width: 150px;
-      font-size: 14px;
+    button.pref-btn {
+      background-color: #666;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+    
+    button.pref-btn:hover {
+      background-color: #777;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="screen-select-container">
-      <span class="screen-select-label">Source Screen:</span>
-      <select id="sourceScreenSelect" class="screen-select">
-        <option value="">Select Source Screen...</option>
-      </select>
-    </div>
-    
-    <div class="screen-select-container">
-      <span class="screen-select-label">Destination Screen:</span>
-      <select id="destScreenSelect" class="screen-select">
-        <option value="">Select Destination Screen...</option>
-      </select>
+    <div class="screen-selectors">
+      <div class="screen-select-container">
+        <span class="screen-select-label">Source Screen:</span>
+        <select id="sourceScreenSelect" class="screen-select">
+          <option value="">Select Source Screen...</option>
+        </select>
+      </div>
+      
+      <div class="screen-select-container">
+        <span class="screen-select-label">Destination Screen:</span>
+        <select id="destScreenSelect" class="screen-select">
+          <option value="">Select Destination Screen...</option>
+        </select>
+      </div>
+      
+      <div class="preferences-buttons">
+        <button id="savePrefsBtn" class="pref-btn">Save Preferences</button>
+        <button id="loadPrefsBtn" class="pref-btn">Load Preferences</button>
+      </div>
     </div>
     
     <div class="controls">
@@ -153,7 +215,12 @@
         <button id="stopBtn" disabled>Stop Mirroring</button>
         <span id="status" class="status">Select a screen to mirror</span>
       </div>
+      
       <div class="controls-right">
+        <select id="windowSelect" class="window-select">
+          <option value="">Select a window to capture...</option>
+        </select>
+        <button id="detectWindowsBtn">Detect Windows</button>
         <label for="resolutionSelect">Output: </label>
         <select id="resolutionSelect" class="resolution-select">
           <option value="1080">1080p (1920×1080)</option>
@@ -161,19 +228,12 @@
           <option value="2160">4K (3840×2160)</option>
         </select>
         <div class="aspect-toggle">
-          <label for="lockAspect">Lock 16:9 in selector:</label>
+          <label for="lockAspect">Lock 16:9:</label>
           <input type="checkbox" id="lockAspect" checked>
         </div>
       </div>
     </div>
-    <div class="controls">
-      <div class="control-buttons">
-        <select id="windowSelect" class="window-select">
-          <option value="">Select a window to capture...</option>
-        </select>
-        <button id="detectWindowsBtn">Detect Windows</button>
-      </div>
-    </div>
+    
     <div class="selection-info">
       <div class="selection-text">
         <span class="selection-label">Current Selection:</span>

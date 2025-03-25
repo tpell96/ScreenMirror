@@ -12,6 +12,8 @@ const lockAspect = document.getElementById('lockAspect');
 const selectionCoords = document.getElementById('selectionCoords');
 const sourceScreenSelect = document.getElementById('sourceScreenSelect');
 const destScreenSelect = document.getElementById('destScreenSelect');
+const savePrefsBtn = document.getElementById('savePrefsBtn');
+const loadPrefsBtn = document.getElementById('loadPrefsBtn');
 
 // State variables
 let isCapturing = false;
@@ -22,6 +24,84 @@ let windowList = [];
 let screenInfo = null;
 let screenList = [];
 let currentSelection = null;
+
+// Preferences storage key
+const PREFERENCES_KEY = 'screenMirrorPreferences';
+
+// Save preferences
+function savePreferences() {
+  const preferences = {
+    sourceScreen: sourceScreenSelect.value,
+    destinationScreen: destScreenSelect.value,
+    resolution: resolutionSelect.value,
+    lockAspect: lockAspect.checked,
+    windowSelection: windowSelect.value
+  };
+  
+  localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
+  status.textContent = 'Preferences saved';
+  setTimeout(() => {
+    status.textContent = 'Select a screen to mirror';
+  }, 2000);
+}
+
+// Load preferences
+function loadPreferences() {
+  const savedPrefs = localStorage.getItem(PREFERENCES_KEY);
+  if (!savedPrefs) {
+    status.textContent = 'No saved preferences found';
+    setTimeout(() => {
+      status.textContent = 'Select a screen to mirror';
+    }, 2000);
+    return;
+  }
+  
+  try {
+    const preferences = JSON.parse(savedPrefs);
+    
+    // Set source screen
+    if (preferences.sourceScreen) {
+      sourceScreenSelect.value = preferences.sourceScreen;
+      handleSourceScreenSelection();
+    }
+    
+    // Set destination screen
+    if (preferences.destinationScreen) {
+      destScreenSelect.value = preferences.destinationScreen;
+    }
+    
+    // Set resolution
+    if (preferences.resolution) {
+      resolutionSelect.value = preferences.resolution;
+    }
+    
+    // Set aspect ratio lock
+    if (typeof preferences.lockAspect === 'boolean') {
+      lockAspect.checked = preferences.lockAspect;
+    }
+    
+    // Set window selection if exists
+    if (preferences.windowSelection) {
+      windowSelect.value = preferences.windowSelection;
+      setSelectionToWindow(preferences.windowSelection);
+    }
+    
+    status.textContent = 'Preferences loaded';
+    setTimeout(() => {
+      status.textContent = 'Select a screen to mirror';
+    }, 2000);
+  } catch (error) {
+    console.error('Error loading preferences:', error);
+    status.textContent = 'Error loading preferences';
+    setTimeout(() => {
+      status.textContent = 'Select a screen to mirror';
+    }, 2000);
+  }
+}
+
+// Add event listeners for preference buttons
+savePrefsBtn.addEventListener('click', savePreferences);
+loadPrefsBtn.addEventListener('click', loadPreferences);
 
 // Resolution presets (width for 16:9 aspect ratio)
 const resolutions = {
@@ -210,6 +290,9 @@ async function getAllScreens() {
       option.title = `Screen ID: ${screen.id}, Scale: ${screen.scaleFactor}x`;
       destScreenSelect.appendChild(option);
     });
+    
+    // Load preferences after populating screens
+    loadPreferences();
     
     console.log('Available screens:', screenList);
   } catch (error) {

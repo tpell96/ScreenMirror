@@ -1,5 +1,3 @@
-1. Update Screen GUI - Better view 
-2. Select Screen Area is not working properly. Think it has something to do with native/scaled resolution differences
 3. Beautify the Source/Destination screen selectors
 4. Add Broadcast Method - This would create a bounding box that is 16:9. 
     Anything in this area would be mirrored. 
