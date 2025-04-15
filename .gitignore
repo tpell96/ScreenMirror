@@ -62,3 +62,11 @@ coverage/
 *.bak
 *.tmp
 *.cache
+
+# ZIP
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2

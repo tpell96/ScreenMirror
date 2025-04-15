@@ -1,6 +1,6 @@
 {
   "name": "screen-mirror",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Application to mirror a 16:9 portion of a 32:9 monitor to a 16:9 display",
   "main": "main.js",
   "scripts": {
@@ -28,12 +28,18 @@
     },
     "electronVersion": "29.0.0",
     "files": [
-      "**/*",
-      "!dist/*"
+      "main.js",
+      "renderer.js",
+      "index.html",
+      "output.html",
+      "selection.html",
+      "package.json"
     ],
     "win": {
       "target": ["portable"],
-      "artifactName": "${productName}-${version}.${ext}"
+      "artifactName": "${productName}-${version}.${ext}",
+      "signingHashAlgorithms": null,
+      "signAndEditExecutable": false
     }
   }
 } 
